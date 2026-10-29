@@ -13,12 +13,13 @@ function render(){const unpaid=O.filter(o=>!o.paid),paid=O.filter(o=>o.paid).sor
  $('sum').textContent=`未結帳 ${Object.keys(byT).length} 桌`;
  $('list').innerHTML=(Object.entries(byT).sort((a,b)=>a[0]-b[0]).map(([t,os])=>{const tot=os.reduce((s,o)=>s+o.total,0);
   return `<div class="card new"><div style="display:flex;justify-content:space-between"><span class=big>第 ${t} 桌</span><span class=big style="color:#a0522d">$${tot}</span></div>
-  ${os.map(o=>`<div style="margin:8px 0;border-top:1px dashed #ccc;padding-top:6px"><span class=muted>#${o.no}・${ST[o.status]}</span>${o.lines.map(l=>`<div>${l.name} ×${l.qty} <span class=muted>${[l.size,l.sugar,l.ice,...l.addons].filter(Boolean).join('／')}</span><span style="float:right">$${l.unit*l.qty}</span></div>`).join('')}</div>`).join('')}
+  ${os.map(o=>`<div style="margin:8px 0;border-top:1px dashed #ccc;padding-top:6px"><span class=muted>#${o.no}・${ST[o.status]}</span>${o.lines.map((l,li)=>`<div style="display:flex;align-items:center;gap:6px;margin:4px 0"><button class=alt style="padding:6px 10px;font-size:14px;flex:none" onclick="rm('${o.id}',${li},'${l.name}')">刪除</button><span style="flex:1">${l.name} ×${l.qty} <span class=muted>${[l.size,l.sugar,l.ice,...l.addons].filter(Boolean).join('／')}</span></span><span>$${l.unit*l.qty}</span></div>`).join('')}</div>`).join('')}
   <button class=ok style="width:100%;margin-top:8px" onclick="pay('${os.map(o=>o.id).join(',')}',${tot},${t})">收 $${tot}，標為已結帳</button></div>`}).join('')||'<div class=card>目前沒有未結帳的桌 👍</div>')
   +(paid.length?'<div class="card muted" style="grid-column:1/-1">最近已結帳</div>'+paid.map(o=>`<div class="card done"><b>第 ${o.table} 桌</b> #${o.no}　$${o.total} <button class=alt style="float:right;padding:6px 10px;font-size:14px" onclick="unpay('${o.id}')">取消結帳</button></div>`).join(''):'')}
 async function pay(ids,tot,t){if(!confirm(`第 ${t} 桌收 $${tot}，確定標為已結帳？`))return;for(const id of ids.split(','))await fetch('/api/orders/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({paid:true})})}
+async function rm(id,li,n){if(!confirm(`刪除「${n}」？`))return;const so=confirm(`「${n}」要不要順便標為售完？\n（確定＝標售完，取消＝只刪這杯）`);await fetch('/api/orders/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({removeLine:li,soldOut:so})})}
 async function unpay(id){await fetch('/api/orders/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({paid:false})})}
 const es=new EventSource('/api/events');
 es.addEventListener('order',e=>{O.push(JSON.parse(e.data));beep();render()});
-es.addEventListener('update',e=>{const o=JSON.parse(e.data);O=O.filter(x=>x.id!==o.id);O.push(o);render()});es.onopen=load;
+es.addEventListener('update',e=>{const o=JSON.parse(e.data);O=O.filter(x=>x.id!==o.id);if(!o.archived)O.push(o);render()});es.onopen=load;
 </script></html>

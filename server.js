@@ -23,15 +23,16 @@ http.createServer(async(req,res)=>{
  if(p==='/api/orders'&&m==='POST'){const b=await body(req);const t=+b.table;if(!(t>=1&&t<=db.tables)||!Array.isArray(b.lines)||!b.lines.length)return json(res,{error:'bad'},400);
   const lines=[];for(const l of b.lines){const it=db.items.find(i=>i.id===l.id);if(!it||it.soldOut)return json(res,{error:(it?it.name:'品項')+' 已售完或不存在'},400);
    const adds=(l.addons||[]).map(n=>it.addons.find(a=>a.name===n)).filter(Boolean);const big=l.size==='大杯'?10:0;const qty=Math.max(1,Math.min(20,+l.qty||1));
-   lines.push({name:it.name,qty,size:l.size||'',sugar:l.sugar||'',ice:l.ice||'',addons:adds.map(a=>a.name),note:String(l.note||'').slice(0,100),unit:it.price+big+adds.reduce((s,a)=>s+a.price,0),station:stationOf(it),done:false})}
+   lines.push({iid:it.id,name:it.name,qty,size:l.size||'',sugar:l.sugar||'',ice:l.ice||'',addons:adds.map(a=>a.name),note:String(l.note||'').slice(0,100),unit:it.price+big+adds.reduce((s,a)=>s+a.price,0),station:stationOf(it),done:false})}
   const o={id:id(),no:++db.seq,table:t,lines,total:lines.reduce((s,l)=>s+l.unit*l.qty,0),note:String(b.note||'').slice(0,200),status:'new',paid:false,ts:Date.now()};
   db.orders.push(o);save();push('order',o);return json(res,o)}
  let mm;
  if((mm=p.match(/^\/api\/orders\/(\w+)$/))&&m==='GET'){const o=db.orders.find(o=>o.id===mm[1]);return o?json(res,o):json(res,{},404)}
  if((mm=p.match(/^\/api\/orders\/(\w+)$/))&&m==='PATCH'){const o=db.orders.find(o=>o.id===mm[1]);if(!o)return json(res,{},404);const b=await body(req);
   if(b.station!=null){o.lines.forEach(l=>{if(l.station===+b.station){if(b.lineStatus==='making')l.making=true;if(b.lineStatus==='done')l.done=true}})}
+  if(b.removeLine!=null){const l=o.lines[+b.removeLine];if(l){o.lines.splice(+b.removeLine,1);if(b.soldOut){const it=db.items.find(i=>i.id===l.iid||i.name===l.name);if(it){it.soldOut=true;push('menu',{})}}}o.total=o.lines.reduce((s,l)=>s+l.unit*l.qty,0);if(!o.lines.length)o.archived=true}
   if(b.paid!=null)o.paid=!!b.paid; if(b.archived)o.archived=true;
-  o.status=o.lines.every(l=>l.done)?'done':o.lines.some(l=>l.making||l.done)?'making':'new';
+  o.status=!o.lines.length?'done':o.lines.every(l=>l.done)?'done':o.lines.some(l=>l.making||l.done)?'making':'new';
   save();push('update',o);return json(res,o)}
  if(p.startsWith('/api/admin/')&&req.headers['x-pin']!==db.pin)return json(res,{error:'密碼錯誤'},401);
  if(p==='/api/admin/check')return json(res,{ok:1});
