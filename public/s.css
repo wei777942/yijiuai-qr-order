@@ -1,0 +1,12 @@
+*{box-sizing:border-box}body{margin:0;font-family:-apple-system,"PingFang TC","Noto Sans TC",sans-serif;background:#f6f1eb;color:#2b2118;font-size:17px}
+header{background:#5b3a29;color:#fff;padding:14px 16px;font-size:20px;font-weight:700;position:sticky;top:0;z-index:5;display:flex;justify-content:space-between;align-items:center}
+button{font-size:18px;border:0;border-radius:12px;padding:12px 18px;background:#5b3a29;color:#fff;cursor:pointer}button.alt{background:#e7ddd2;color:#2b2118}button.ok{background:#2f7d4a}button:disabled{opacity:.4}
+.card{background:#fff;border-radius:14px;padding:14px;margin:10px;box-shadow:0 1px 3px #0001}
+.tabs{display:flex;gap:8px;overflow-x:auto;padding:10px;position:sticky;top:56px;background:#f6f1eb;z-index:4}.tabs button{white-space:nowrap;background:#e7ddd2;color:#2b2118}.tabs button.on{background:#5b3a29;color:#fff}
+.item{display:flex;gap:12px;align-items:center}.item img,.ph{width:72px;height:72px;border-radius:10px;object-fit:cover;background:#e7ddd2;flex:none}.item .n{font-weight:700}.price{color:#a0522d;font-weight:700}
+.sold{opacity:.45}.chips{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 12px}.chips label{padding:10px 14px;border-radius:20px;background:#efe6dc}.chips input{display:none}.chips input:checked+span{color:#fff}.chips label:has(input:checked){background:#5b3a29;color:#fff}
+.sheet{position:fixed;inset:0;background:#0006;display:none;align-items:flex-end;z-index:9}.sheet>div{background:#fff;width:100%;max-height:90vh;overflow:auto;border-radius:18px 18px 0 0;padding:18px}
+.bar{position:fixed;bottom:0;left:0;right:0;padding:12px;background:#fff;box-shadow:0 -2px 8px #0002}.bar button{width:100%;font-size:20px;padding:16px}
+input,select,textarea{font-size:17px;padding:10px;border:1px solid #ccc;border-radius:10px;width:100%}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:4px}.muted{color:#888;font-size:14px}.big{font-size:24px;font-weight:800}
+.new{border-left:8px solid #d9534f}.making{border-left:8px solid #f0ad4e}.done{border-left:8px solid #2f7d4a}

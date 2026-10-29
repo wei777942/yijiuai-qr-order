@@ -1,0 +1,25 @@
+<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>看單</title><link rel="stylesheet" href="/s.css">
+<header><span id="h">看單</span><span><select id="sel" style="width:auto;font-size:16px"></select></span></header>
+<div id="snd" class="card" style="background:#fff3cd">👆 點一下畫面開啟提示音</div>
+<div class="grid" id="list"></div>
+<script>
+const $=s=>document.getElementById(s);let S=+(new URLSearchParams(location.search).get('s')??localStorage.st??0),M,O=[];
+let ac;document.body.addEventListener('click',()=>{ac=ac||new AudioContext();ac.resume();$('snd').style.display='none'},{once:false});
+function beep(){if(!ac)return;[0,.25,.5].forEach(t=>{const o=ac.createOscillator(),g=ac.createGain();o.frequency.value=880;o.connect(g);g.connect(ac.destination);g.gain.setValueAtTime(.3,ac.currentTime+t);o.start(ac.currentTime+t);o.stop(ac.currentTime+t+.18)})}
+async function load(){M=await (await fetch('/api/menu')).json();O=await (await fetch('/api/orders')).json();
+ $('sel').innerHTML=M.stations.map((n,i)=>`<option value=${i} ${i==S?'selected':''}>${n}</option>`).join('');$('h').textContent=M.stations[S]+' 看單';render()}
+$('sel').onchange=e=>{S=+e.target.value;localStorage.st=S;history.replaceState(0,'','?s='+S);load()};
+const mine=o=>o.lines.filter(l=>l.station===S);
+function render(){const os=O.filter(o=>mine(o).length&&!mine(o).every(l=>l.done)).sort((a,b)=>a.ts-b.ts);
+ const done=O.filter(o=>mine(o).length&&mine(o).every(l=>l.done)).sort((a,b)=>b.ts-a.ts).slice(0,6);
+ const card=(o,fin)=>{const ls=mine(o),mk=ls.some(l=>l.making);const cls=fin?'done':mk?'making':'new';
+  return `<div class="card ${cls}"><div style="display:flex;justify-content:space-between"><span class=big>第 ${o.table} 桌</span><span>#${o.no}　${new Date(o.ts).toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'})}</span></div>
+  ${ls.map(l=>`<div style="margin:8px 0;font-size:20px"><b>${l.name} ×${l.qty}</b><div>${[l.size,l.sugar,l.ice,...l.addons].filter(Boolean).join('／')}</div>${l.note?`<div style="color:#c0392b">備註：${l.note}</div>`:''}</div>`).join('')}
+  ${fin?'<div class=muted>已完成</div>':`<div style="display:flex;gap:8px">${mk?'':`<button class=alt style="flex:1" onclick="up('${o.id}','making')">製作中</button>`}<button class=ok style="flex:1" onclick="up('${o.id}','done')">完成</button></div>`}</div>`};
+ $('list').innerHTML=(os.map(o=>card(o)).join('')||'<div class=card>目前沒有待做的單 ☕</div>')+(done.length?'<div class="card muted" style="grid-column:1/-1">最近完成</div>'+done.map(o=>card(o,1)).join(''):'')}
+async function up(id,st){await fetch('/api/orders/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({station:S,lineStatus:st})})}
+const es=new EventSource('/api/events');
+es.addEventListener('order',e=>{const o=JSON.parse(e.data);O.push(o);if(mine(o).length)beep();render()});
+es.addEventListener('update',e=>{const o=JSON.parse(e.data);O=O.filter(x=>x.id!==o.id);if(!o.archived)O.push(o);render()});
+es.addEventListener('menu',load);es.onopen=load;
+</script></html>

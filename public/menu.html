@@ -1,0 +1,41 @@
+<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>點餐</title><link rel="stylesheet" href="/s.css">
+<header><span id="h">點餐</span><span id="mine" style="font-size:15px"></span></header>
+<div class="tabs" id="tabs"></div><div id="list" style="padding-bottom:90px"></div>
+<div class="bar" id="cartbar" style="display:none"><button id="cbtn"></button></div>
+<div class="sheet" id="sheet"><div id="sb"></div></div>
+<script>
+const T=+(location.pathname.match(/\/t\/(\d+)/)||[])[1]||+new URLSearchParams(location.search).get('t');
+let M,cart=JSON.parse(sessionStorage.cart||'[]'),cat;const $=s=>document.getElementById(s);
+const sv=()=>{sessionStorage.cart=JSON.stringify(cart);renderBar()};
+async function load(){M=await (await fetch('/api/menu')).json();if(!T||T>M.tables){document.body.innerHTML='<div class=card>找不到桌號，請重新掃桌上的 QR Code</div>';return}
+ $("h").textContent=`${M.shop}・第 ${T} 桌`;document.title=M.shop;cat=cat||M.categories[0]?.id;render();renderBar();showMine()}
+function render(){$('tabs').innerHTML=M.categories.map(c=>`<button class="${c.id===cat?'on':''}" onclick="cat='${c.id}';render()">${c.name}</button>`).join('');
+ $('list').innerHTML=M.items.filter(i=>i.cat===cat).map(i=>`<div class="card item ${i.soldOut?'sold':''}" onclick="${i.soldOut?'':`pick('${i.id}')`}">${i.img?`<img src="${i.img}">`:'<div class=ph></div>'}<div style="flex:1"><div class=n>${i.name}</div><div class=price>$${i.price}</div></div>${i.soldOut?'<b>售完</b>':'<button>＋</button>'}</div>`).join('')||'<div class=card>這個分類還沒有品項</div>'}
+const ch=(n,arr,def)=>`<div class=chips>${arr.map(v=>`<label><input type=radio name=${n} value="${v}" ${v===def?'checked':''}><span>${v}</span></label>`).join('')}</div>`;
+function pick(id){const i=M.items.find(x=>x.id===id),o=i.opts||'';let h=`<div class=big>${i.name} <span class=price>$${i.price}</span></div>`;
+ if(o.includes('size'))h+='<b>大小</b>'+ch('size',['中杯','大杯'],'中杯')+'<div class=muted style="margin-top:-8px">大杯 +$10</div>';
+ if(o.includes('sugar'))h+='<b>甜度</b>'+ch('sugar',['正常糖','少糖','半糖','微糖','無糖'],'正常糖');
+ if(o.includes('ice'))h+='<b>冰塊</b>'+ch('ice',['正常冰','少冰','微冰','去冰','溫','熱'],'正常冰');
+ if(i.addons?.length)h+='<b>加料</b><div class=chips>'+i.addons.map(a=>`<label><input type=checkbox name=ad value="${a.name}"><span>${a.name} +$${a.price}</span></label>`).join('')+'</div>';
+ h+=`<b>數量</b><div style="display:flex;gap:12px;align-items:center;margin:8px 0"><button class=alt onclick="q.value=Math.max(1,+q.value-1)">−</button><input id=q value=1 style="width:70px;text-align:center" inputmode=numeric><button class=alt onclick="q.value=+q.value+1">＋</button></div>
+ <b>備註</b><input id=nt placeholder="例如：不要吸管"><div style="display:flex;gap:10px;margin-top:16px"><button class=alt style="flex:1" onclick="closeS()">取消</button><button style="flex:2" onclick="add('${id}')">加入購物車</button></div>`;
+ $('sb').innerHTML=h;$('sheet').style.display='flex'}
+const val=n=>(document.querySelector(`input[name=${n}]:checked`)||{}).value||'';
+function add(id){const i=M.items.find(x=>x.id===id);const ad=[...document.querySelectorAll('input[name=ad]:checked')].map(x=>x.value);const size=val('size');
+ const unit=i.price+(size==='大杯'?10:0)+ad.reduce((s,n)=>s+i.addons.find(a=>a.name===n).price,0);
+ cart.push({id,name:i.name,size,sugar:val('sugar'),ice:val('ice'),addons:ad,note:$('nt').value,qty:Math.max(1,+$('q').value||1),unit});sv();closeS()}
+function closeS(){$('sheet').style.display='none'}$('sheet').onclick=e=>{if(e.target.id==='sheet')closeS()};
+function renderBar(){const n=cart.reduce((s,c)=>s+c.qty,0),t=cart.reduce((s,c)=>s+c.qty*c.unit,0);$('cartbar').style.display=n?'block':'none';$('cbtn').textContent=`查看購物車（${n} 杯）$${t}`}
+$('cbtn').onclick=()=>{const t=cart.reduce((s,c)=>s+c.qty*c.unit,0);
+ $('sb').innerHTML='<div class=big>購物車</div>'+cart.map((c,k)=>`<div class=card style="margin:10px 0"><b>${c.name}</b> ×${c.qty} <span class=price style="float:right">$${c.unit*c.qty}</span><div class=muted>${[c.size,c.sugar,c.ice,...c.addons,c.note].filter(Boolean).join('、')}</div><button class=alt style="margin-top:8px;padding:6px 12px" onclick="cart.splice(${k},1);sv();${cart.length>1?"$('cbtn').onclick()":'closeS()'}">刪除</button></div>`).join('')+
+ `<div class=big style="text-align:right">合計 $${t}</div><div class=muted>送出後請到櫃檯結帳</div><div style="display:flex;gap:10px;margin-top:12px"><button class=alt style="flex:1" onclick="closeS()">繼續點</button><button id=send style="flex:2" onclick="send()">送出訂單</button></div>`;$('sheet').style.display='flex'};
+async function send(){$('send').disabled=true;const r=await fetch('/api/orders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({table:T,lines:cart})});const o=await r.json();
+ if(!r.ok){alert(o.error||'送出失敗，請再試一次');$('send').disabled=false;load();return}
+ const mine=JSON.parse(localStorage.mine||'[]');mine.push(o.id);localStorage.mine=JSON.stringify(mine.slice(-10));cart=[];sv();closeS();showMine()}
+const ST={new:'已送出，等待製作',making:'製作中',done:'完成，可取餐 ✅'};
+async function showMine(){const ids=JSON.parse(localStorage.mine||'[]');if(!ids.length)return;const os=(await Promise.all(ids.map(i=>fetch('/api/orders/'+i).then(r=>r.ok?r.json():null)))).filter(o=>o&&Date.now()-o.ts<4*3600e3);
+ let el=$('st');if(!el){el=document.createElement('div');el.id='st';$('list').before(el)}
+ el.innerHTML=os.reverse().map(o=>`<div class="card ${o.status}"><b>訂單 #${o.no}</b>　${ST[o.status]}<div class=muted>${o.lines.map(l=>l.name+'×'+l.qty).join('、')}｜$${o.total}${o.paid?'｜已結帳':'｜請到櫃檯結帳'}</div></div>`).join('')}
+const es=new EventSource('/api/events');es.addEventListener('update',showMine);es.addEventListener('menu',load);
+load();
+</script></html>

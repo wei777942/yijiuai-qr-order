@@ -1,0 +1,36 @@
+<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>管理後台</title><link rel="stylesheet" href="/s.css">
+<style>.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.row>*{flex:1;min-width:110px}table{width:100%;border-collapse:collapse}td{padding:6px;border-bottom:1px solid #eee;vertical-align:top}.qr{display:inline-block;text-align:center;border:1px dashed #aaa;padding:14px;margin:8px;width:230px;page-break-inside:avoid}.qr img{width:200px}@media print{header,.noprint{display:none!important}.card{box-shadow:none}}</style>
+<header><span>管理後台</span><span class="noprint"><button class="alt" onclick="tab('menu')">菜單</button> <button class="alt" onclick="tab('set')">設定</button> <button class="alt" onclick="tab('qr')">QR Code</button></span></header>
+<div id="login" class="card"><b>輸入後台密碼</b><div class="row" style="margin-top:8px"><input id="pin" type="password" inputmode="numeric"><button onclick="login()" style="flex:none">進入</button></div></div>
+<div id="app" style="display:none"></div>
+<div class="bar noprint" id="savebar" style="display:none"><button class="ok" onclick="save()">儲存變更</button></div>
+<script>
+const $=s=>document.getElementById(s);let M,PIN=sessionStorage.pin||'',view='menu',fc='';
+const api=(u,b)=>fetch(u,{method:'POST',headers:{'Content-Type':'application/json','x-pin':PIN},body:JSON.stringify(b||{})});
+async function login(){PIN=$('pin').value||PIN;const r=await api('/api/admin/check');if(!r.ok){if($('pin').value)alert('密碼錯誤');return}sessionStorage.pin=PIN;$('login').style.display='none';$('app').style.display='block';$('savebar').style.display='block';M=await (await fetch('/api/menu')).json();fc=M.categories[0]?.id||'';render()}
+function tab(v){view=v;render()}
+const esc=s=>String(s??'').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+const stSel=(v,blank)=>`${blank?`<option value="" ${v==null||v===''?'selected':''}>跟分類</option>`:''}${M.stations.map((n,i)=>`<option value=${i} ${v!==''&&v!=null&&+v===i?'selected':''}>${n}</option>`).join('')}`;
+function render(){let h='';
+ if(view==='set'){h=`<div class=card><b>店名</b><input value="${esc(M.shop)}" onchange="M.shop=this.value"><b>桌數</b><input type=number value=${M.tables} onchange="M.tables=+this.value"><b>出餐口名稱</b>${M.stations.map((n,i)=>`<input style="margin:4px 0" value="${esc(n)}" onchange="M.stations[${i}]=this.value">`).join('')}<b>後台密碼（改了記得記住）</b><input id=np placeholder="不改就留空"></div>
+ <div class=card><b>分類（每個分類預設歸哪個出餐口）</b>${M.categories.map((c,i)=>`<div class=row style="margin:6px 0"><input value="${esc(c.name)}" onchange="M.categories[${i}].name=this.value"><select onchange="M.categories[${i}].station=+this.value">${stSel(c.station)}</select><button class=alt style="flex:none" onclick="mv(${i},-1)">↑</button><button class=alt style="flex:none" onclick="delCat(${i})">刪</button></div>`).join('')}<button class=alt onclick="M.categories.push({id:'c'+Date.now(),name:'新分類',station:0});render()">＋新增分類</button></div>`}
+ if(view==='menu'){const its=M.items.filter(i=>i.cat===fc);
+ h=`<div class=tabs style="top:56px">${M.categories.map(c=>`<button class="${c.id===fc?'on':''}" onclick="fc='${c.id}';render()">${esc(c.name)}（${M.items.filter(i=>i.cat===c.id).length}）</button>`).join('')}</div>`+
+ its.map(it=>{const k=M.items.indexOf(it);return `<div class="card ${it.soldOut?'sold':''}"><div class=row><label style="flex:none;cursor:pointer">${it.img?`<img src="${it.img}" style="width:64px;height:64px;border-radius:10px;object-fit:cover">`:'<div class=ph style="width:64px;height:64px;display:flex;align-items:center;justify-content:center;font-size:12px">上傳圖</div>'}<input type=file accept="image/*" style="display:none" onchange="up(${k},this)"></label>
+ <input value="${esc(it.name)}" placeholder=品名 onchange="M.items[${k}].name=this.value"><input type=number value=${it.price} style="max-width:110px" onchange="M.items[${k}].price=+this.value"></div>
+ <div class=row style="margin-top:8px"><select onchange="M.items[${k}].cat=this.value;render()">${M.categories.map(c=>`<option value=${c.id} ${c.id===it.cat?'selected':''}>${esc(c.name)}</option>`).join('')}</select><select onchange="M.items[${k}].station=this.value===''?null:+this.value">${stSel(it.station,1)}</select></div>
+ <div class=row style="margin-top:8px">${[['size','大小杯'],['sugar','甜度'],['ice','冰塊']].map(([o,n])=>`<label style="flex:none"><input type=checkbox style="width:auto" ${(it.opts||'').includes(o)?'checked':''} onchange="tog(${k},'${o}',this.checked)"> ${n}</label>`).join('')}</div>
+ <input style="margin-top:8px" placeholder="加料，例如：珍珠:10,燕麥奶:15" value="${esc((it.addons||[]).map(a=>a.name+':'+a.price).join(','))}" onchange="M.items[${k}].addons=this.value.split(/[,，]/).map(s=>s.trim()).filter(Boolean).map(s=>{const[a,b]=s.split(/[:：]/);return{name:a.trim(),price:+b||0}})">
+ <div class=row style="margin-top:8px"><button class="${it.soldOut?'ok':'alt'}" onclick="M.items[${k}].soldOut=!M.items[${k}].soldOut;render()">${it.soldOut?'恢復供應':'標為售完'}</button><button class=alt onclick="if(confirm('刪除 ${esc(it.name)}？')){M.items.splice(${k},1);render()}">刪除</button></div></div>`}).join('')+
+ `<div class=card><button onclick="M.items.push({id:'i'+Date.now(),cat:fc,name:'新飲料',price:60,img:'',soldOut:false,station:null,opts:'size,sugar,ice',addons:[]});render()">＋新增飲料到這個分類</button></div><div style="height:80px"></div>`}
+ if(view==='qr'){h=`<div class="card noprint">共 ${M.tables} 桌。<button onclick="print()">列印</button></div><div style="text-align:center">`+Array.from({length:M.tables},(_,i)=>{const u=location.origin+'/t/'+(i+1);return `<div class=qr><div class=big>${esc(M.shop)}</div><img src="/api/qr?u=${encodeURIComponent(u)}"><div class=big>第 ${i+1} 桌</div><div class=muted>手機掃碼點餐・櫃檯結帳</div></div>`}).join('')+'</div>'}
+ $('app').innerHTML=h;$('savebar').style.display=view==='qr'?'none':'block'}
+function tog(k,o,on){let s=(M.items[k].opts||'').split(',').filter(Boolean).filter(x=>x!==o);if(on)s.push(o);M.items[k].opts=s.join(',')}
+function mv(i,d){if(i+d<0)return;const c=M.categories;[c[i],c[i+d]]=[c[i+d],c[i]];render()}
+function delCat(i){const c=M.categories[i];if(M.items.some(x=>x.cat===c.id))return alert('這個分類還有飲料，先移走或刪掉');M.categories.splice(i,1);render()}
+async function up(k,inp){const f=inp.files[0];if(!f)return;const img=new Image();img.src=URL.createObjectURL(f);await img.decode();const s=Math.min(1,600/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=img.width*s;c.height=img.height*s;c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+ const r=await api('/api/admin/upload',{data:c.toDataURL('image/jpeg',.82)});const j=await r.json();if(j.url){M.items[k].img=j.url;render()}}
+async function save(){const b={shop:M.shop,tables:M.tables,stations:M.stations,categories:M.categories,items:M.items};const np=$('np')?.value;if(np)b.pin=np;
+ const r=await api('/api/admin/save',b);if(r.ok){if(np){PIN=np;sessionStorage.pin=np}alert('已儲存 ✅')}else alert('儲存失敗')}
+if(PIN)login();
+</script></html>
